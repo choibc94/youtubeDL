@@ -1,255 +1,308 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import os
 import sys
-import json
 import queue
 import threading
 from yt_dlp import YoutubeDL
-from pathlib import Path
 
-###############################################################################
-# 공용 유틸 함수
-###############################################################################
+# ------------------------------------------------------------
+# 기본 환경 설정
+# ------------------------------------------------------------
+FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 
-def input_nonempty(prompt):
-    """비어있지 않은 입력만 허용."""
-    while True:
-        x = input(prompt).strip()
-        if x:
-            return x
+# ydl_base_opts
+# ffmpeg 경로 강제 지정
+# macOS <-> VSCode 환경 차이 무시
+# 최신 component 사용
+# SSL 검증 우회
+# 로그 최소화
+ydl_base_opts = {
+    "quiet": True,                      # 로그 최소화
+    "no_warnings": True,                # 경고 제거
+    "ffmpeg_location": FFMPEG_PATH,     # ffmpeg/ffprobe가 단일 경로 또는 디렉토리여도 정상 인식
+    "prefer_ffmpeg": True,              # ffmpeg이 여러 위치에 있어도 지정한 경로를 우선 사용하도록 강제함.
+    "nocheckcertificate": True,         # SSL 검증 비활성화
+    "remote_components": "ejs:github",  # 최신 extractor component를 GitHub에서 가져오도록 지정
+    "merge_output_format": "mp4",       # ffmpeg 병합의 명시적 포맷 지정
+}
 
-def print_separator():
-    print("-" * 70)
+# ------------------------------------------------------------
+# 유틸 함수
+# ------------------------------------------------------------
 
+def print_header(title):
+    print("\n" + "=" * 70)
+    print(f"[ {title} ]")
+    print("=" * 70)
 
-###############################################################################
-# yt-dlp Wrapper
-###############################################################################
+# ------------------------------------------------------------
+#  유튜브 정보 조회
+# ------------------------------------------------------------
 
-def get_video_info(url):
-    """URL의 가능한 포맷 목록을 반환"""
-    ydl_opts = {
-        "quiet": True,
-        "skip_download": True,
+def fetch_video_info(url):
+    opts = {
+        **ydl_base_opts,
+        "dump_single_json": True,
         "extract_flat": False,
     }
 
-    with YoutubeDL(ydl_opts) as ydl:
-        return ydl.extract_info(url, download=False)
+    with YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
 
+    return info
 
 def list_formats(info):
-    """비디오/오디오 포맷 리스트 반환"""
-    video_formats = []
-    audio_formats = []
-    for f in info.get("formats", []):
-        if f.get("vcodec") != "none" and f.get("acodec") == "none":
-            video_formats.append(f)
-        elif f.get("vcodec") == "none" and f.get("acodec") != "none":
-            audio_formats.append(f)
-    return video_formats, audio_formats
+    RESET = "\033[0m"
+    GREEN = "\033[92m"     # audio
+    CYAN = "\033[96m"      # video
+    YELLOW = "\033[93m"    # storyboard or other
+
+    formats = info.get("formats", [])
+    if not formats:
+        print("포맷 정보를 찾을 수 없습니다.")
+        return []
+
+    print("\n=== 사용 가능한 포맷 목록 ===")
+
+    # 컬럼 정의 (고정폭 정렬)
+    header = (
+        f"{'ID':>6} | {'EXT':<5} | {'RESOLUTION':<12} | {'FPS':>5} | {'CH':>3} | "
+        f"{'FILESIZE(MiB)':>14} | {'TBR(k)':>8} | {'PROTO':<6} | "
+        f"{'VCODEC':<12} | {'VBR(k)':>8} | {'ACODEC':<10} | {'ABR(k)':>6} | "
+        f"{'ASR(k)':>6} | {'MORE':<10} | {'INFO'}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    def to_k(val):
+        if val is None:
+            return "-"
+        return f"{round(val)}k"
+
+    # ASR 전용 변환
+    def asr_to_k(val):
+        if val is None:
+            return "-"
+        return f"{round(val / 1000)}k"
+    
+    for f in formats:
+        # Resolution
+        width = f.get("width")
+        height = f.get("height")
+        resolution = f"{width}x{height}" if width and height else "audio only"
+
+        # FPS (정수 반올림)
+        fps = f.get("fps")
+        if fps is not None:
+            fps = int(round(fps))
+        else:
+            fps = "-"
+
+        # Channels
+        ch = f.get("audio_channels") or "-"
+
+        # File Size → MiB
+        size = f.get("filesize") or f.get("filesize_approx")
+        if size:
+            filesize_mib = f"{round(size / (1024 * 1024), 2)} MiB"
+        else:
+            filesize_mib = "-"
+
+        # Bitrates
+        tbr = to_k(f.get("tbr"))
+        vbr = to_k(f.get("vbr"))
+        abr = to_k(f.get("abr"))
+        asr = asr_to_k(f.get("asr")) or "-"
+
+        # Protocol & Codec 정보
+        proto = f.get("protocol") or "-"
+        vcodec = f.get("vcodec") or "-"
+        acodec = f.get("acodec") or "-"
+
+        # More / Info
+        more = f.get("format_note") or "-"
+        info_text = f.get("format") or "-"
+
+        # ===== 색상 결정 로직 =====
+        if "storyboard" in more or (f.get("ext") == "mhtml"):
+            color = YELLOW                # Storyboard
+        elif resolution == "audio only":
+            color = GREEN                 # Audio Only
+        else:
+            color = CYAN                  # Video
 
 
-###############################################################################
-# 진행률 Hook
-###############################################################################
+        print(
+            color +
+            f"{f.get('format_id', '-'):>6} | "
+            f"{(f.get('ext') or '-'):5} | "
+            f"{resolution:<12} | "
+            f"{str(fps):>5} | "
+            f"{str(ch):>3} | "
+            f"{filesize_mib:>14} | "
+            f"{str(tbr):>8} | "
+            f"{proto:<6} | "
+            f"{vcodec:<12} | "
+            f"{str(vbr):>8} | "
+            f"{acodec:<10} | "
+            f"{str(abr):>6} | "
+            f"{str(asr):>6} | "
+            f"{more:<10} | "
+            f"{info_text}"
+            + RESET
+        )
+
+    return formats
+
+# ------------------------------------------------------------
+#  다운로드 처리
+# ------------------------------------------------------------
+
+def build_download_opts(download_dir, video_fmt=None, audio_fmt=None, convert_to=None):
+    opts = {
+        **ydl_base_opts,
+        "outtmpl": os.path.join(download_dir, "%(title)s.%(ext)s"),
+        "progress_hooks": [progress_hook],
+    }
+
+    # 특정 포맷 선택
+    if video_fmt or audio_fmt:
+        if audio_fmt:
+            fmt = f"{video_fmt}+{audio_fmt}" if video_fmt else audio_fmt
+        else:
+            fmt = video_fmt
+        opts["format"] = fmt
+    else:
+        # 자동 best 매핑
+        opts["format"] = "bv*+ba/best"
+
+    # 변환 옵션 (mp3/mp4)
+    if convert_to == "mp3":
+        opts["postprocessors"] = [
+            {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"},
+        ]
+    elif convert_to == "mp4":
+        opts["postprocessors"] = [
+            {"key": "FFmpegVideoConvertor", "preferedformat": "mp4"},
+        ]
+
+    return opts
 
 def progress_hook(d):
     if d["status"] == "downloading":
-        percent = d.get("_percent_str", "0%")
-        speed = d.get("_speed_str", "N/A")
-        eta = d.get("_eta_str", "N/A")
-        print(f"\r진행률: {percent} | 속도: {speed} | ETA: {eta}", end="", flush=True)
+        p = d.get("downloaded_bytes", 0)
+        t = d.get("total_bytes") or d.get("total_bytes_estimate") or 1
+        percent = (p / t) * 100
+        sys.stdout.write(f"\r다운로드 중... {percent:5.1f}%")
+        sys.stdout.flush()
     elif d["status"] == "finished":
-        print("\n다운로드 완료. 후처리 시작...")
+        print("\n병합 및 후처리 중...")
 
+def download_video(url, download_dir, video_fmt=None, audio_fmt=None, convert_to=None):
+    print_header(f"다운로드 시작: {url}")
 
-###############################################################################
-# 다운로드 함수 (영상+음성 병합, 변환 가능)
-###############################################################################
+    opts = build_download_opts(download_dir, video_fmt, audio_fmt, convert_to)
 
-def download_with_options(url, download_dir, v_opt, a_opt, conv_ext=None):
-    """지정된 비디오/오디오 포맷으로 다운로드 및 병합, 변환"""
-    format_str = None
-
-    # 자동 best 모드
-    if v_opt == "best":
-        format_str = "bestvideo+bestaudio/best"
-    else:
-        # 사용자가 videoID, audioID 지정한 경우
-        if a_opt:
-            format_str = f"{v_opt}+{a_opt}"
-        else:
-            format_str = v_opt
-
-    ydl_opts = {
-        "outtmpl": os.path.join(download_dir, "%(title)s.%(ext)s"),
-        "progress_hooks": [progress_hook],
-        "merge_output_format": "mp4",
-        "format": format_str,
-        "postprocessors": [],
-    }
-
-    # 변환 옵션
-    if conv_ext:
-        if conv_ext == "mp3":
-            ydl_opts["postprocessors"].append({
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            })
-        elif conv_ext == "mp4":
-            ydl_opts["postprocessors"].append({
-                "key": "FFmpegVideoConvertor",
-                "preferedformat": "mp4",
-            })
-
-    with YoutubeDL(ydl_opts) as ydl:
+    with YoutubeDL(opts) as ydl:
         ydl.download([url])
 
+    print("\n다운로드 완료.")
 
-###############################################################################
-# 플레이리스트 처리
-###############################################################################
+# ------------------------------------------------------------
+# 플레이리스트 전체 다운로드
+# ------------------------------------------------------------
 
-def extract_playlist_urls(info):
-    """플레이리스트 내 영상 URL 목록 추출"""
-    entries = info.get("entries", [])
-    urls = []
-    for item in entries:
-        if item and "url" in item:
-            base = item.get("webpage_url") or item.get("url")
-            urls.append(base)
-    return urls
+def download_playlist(url, download_dir, convert_to=None):
+    print_header("플레이리스트 전체 다운로드 시작")
 
+    opts = {
+        **ydl_base_opts,
+        "outtmpl": os.path.join(download_dir, "%(playlist_title)s/%(title)s.%(ext)s"),
+        "progress_hooks": [progress_hook],
+        "format": "bv*+ba/best",
+    }
 
-###############################################################################
+    if convert_to == "mp3":
+        opts["postprocessors"] = [
+            {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"},
+        ]
+
+    with YoutubeDL(opts) as ydl:
+        ydl.download([url])
+
+    print("\n플레이리스트 다운로드 완료.")
+
+# ------------------------------------------------------------
 # 멀티 다운로드 큐
-###############################################################################
+# ------------------------------------------------------------
 
-class DownloadWorker(threading.Thread):
-    def __init__(self, q, download_dir, v_opt, a_opt, conv_ext):
-        super().__init__()
-        self.q = q
-        self.download_dir = download_dir
-        self.v_opt = v_opt
-        self.a_opt = a_opt
-        self.conv_ext = conv_ext
+def worker_download(q, download_dir):
+    while True:
+        try:
+            task = q.get_nowait()
+        except queue.Empty:
+            return
 
-    def run(self):
-        while True:
-            try:
-                url = self.q.get_nowait()
-            except queue.Empty:
-                break
+        url = task["url"]
+        convert = task["convert"]
 
-            print_separator()
-            print(f"[QUEUE] 다운로드 시작: {url}")
-            try:
-                download_with_options(url, self.download_dir, self.v_opt, self.a_opt, self.conv_ext)
-            except Exception as e:
-                print(f"[ERROR] {url}: {e}")
-            finally:
-                self.q.task_done()
+        download_video(url, download_dir, convert_to=convert)
+        q.task_done()
 
-
-###############################################################################
-# CLI 동작 메인 로직
-###############################################################################
-
-def cli():
-    print_separator()
-    print("YouTube 다운로드 CLI")
-    print_separator()
-
-    # 1. 다운로드 위치 설정
-    download_dir = input_nonempty("다운로드 경로를 입력하세요: ")
-    Path(download_dir).mkdir(parents=True, exist_ok=True)
-
-    # 2. URL 입력
-    url = input_nonempty("유튜브 URL 또는 플레이리스트 URL을 입력하세요: ")
-
-    # 3. 포맷 분석
-    print("\n정보 분석 중...")
-    info = get_video_info(url)
-    is_playlist = "entries" in info
-
-    # 3-1. 영상 리스트 출력 (단일 영상인 경우)
-    if not is_playlist:
-        video_formats, audio_formats = list_formats(info)
-
-        print_separator()
-        print("[영상 포맷 리스트]")
-        for idx, f in enumerate(video_formats):
-            print(f"{idx:03d}: {f.get('format_id')} | {f.get('resolution')} | {f.get('vcodec')} | {f.get('filesize', 'N/A')}")
-
-        print_separator()
-        print("[오디오 포맷 리스트]")
-        for idx, f in enumerate(audio_formats):
-            print(f"{idx:03d}: {f.get('format_id')} | {f.get('acodec')} | {f.get('abr')}kbps | {f.get('filesize', 'N/A')}")
-
-        print_separator()
-
-        mode = input("자동 best 선택(Y) 또는 수동 선택(N)? [Y/N]: ").strip().upper()
-
-        if mode == "Y":
-            v_opt = "best"
-            a_opt = None
-        else:
-            v_idx = int(input("다운로드할 영상 포맷 번호: "))
-            a_idx = int(input("다운로드할 오디오 포맷 번호: "))
-            v_opt = video_formats[v_idx]["format_id"]
-            a_opt = audio_formats[a_idx]["format_id"]
-
-    else:
-        print("[플레이리스트 감지] 전체 목록을 대상으로 처리합니다.")
-        v_opt = "best"
-        a_opt = None
-
-    # 변환 옵션
-    print_separator()
-    conv = input("변환 옵션 선택 (none/mp3/mp4): ").strip().lower()
-    if conv not in ["none", "mp3", "mp4"]:
-        conv = "none"
-    conv_ext = None if conv == "none" else conv
-
-    # 플레이리스트라면 전체 URL 을 큐로 투입
-    if is_playlist:
-        urls = extract_playlist_urls(info)
-        print(f"[플레이리스트] 총 {len(urls)}개 항목")
-    else:
-        urls = [url]
-
-    # 멀티 다운로드 큐
-    th_count = input("멀티 다운로드 스레드 수 지정(기본 2): ").strip()
-    th_count = int(th_count) if th_count.isdigit() and int(th_count) > 0 else 2
-
+def process_download_queue(tasks, download_dir, threads=3):
+    print_header("멀티 다운로드 큐 실행")
     q = queue.Queue()
-    for u in urls:
-        q.put(u)
 
-    workers = []
-    for _ in range(th_count):
-        t = DownloadWorker(q, download_dir, v_opt, a_opt, conv_ext)
-        t.start()
-        workers.append(t)
+    for t in tasks:
+        q.put(t)
 
-    for t in workers:
-        t.join()
+    for _ in range(threads):
+        th = threading.Thread(target=worker_download, args=(q, download_dir))
+        th.daemon = True
+        th.start()
 
-    print_separator()
+    q.join()
     print("모든 다운로드가 완료되었습니다.")
-    print_separator()
 
+# ------------------------------------------------------------
+# CLI 입력
+# ------------------------------------------------------------
 
-###############################################################################
-# 엔트리포인트
-###############################################################################
+def main():
+    print_header("YouTube Downloader CLI")
+
+    download_dir = input("다운로드 저장 위치를 입력하세요 (미입력='./download'): ").strip()
+
+    # 다운로드 경로 기본값 + 유효성 검사
+    if not download_dir:
+        download_dir = "./download"
+
+    os.makedirs(download_dir, exist_ok=True)
+
+    url = input("유튜브 URL을 입력하세요: ").strip()
+
+    # 플레이리스트 자동 감지
+    if "playlist" in url.lower():
+        print("플레이리스트 URL 감지됨.")
+        conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
+        download_playlist(url, download_dir, convert_to=(conv if conv else None))
+        return
+
+    # 단일 영상 정보 조회
+    info = fetch_video_info(url)
+
+    title = info.get("title")
+    print(f"\n영상 제목: {title}")
+
+    formats = list_formats(info)
+
+    # 사용자가 포맷 선택
+    video_fmt = input("\n선택할 VIDEO 포맷 ID (없으면 Enter): ").strip() or None
+    audio_fmt = input("선택할 AUDIO 포맷 ID (없으면 Enter): ").strip() or None
+    conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
+    convert_to = conv if conv else None
+
+    download_video(url, download_dir, video_fmt, audio_fmt, convert_to)
 
 if __name__ == "__main__":
-    try:
-        cli()
-    except KeyboardInterrupt:
-        print("\n사용자 인터럽트로 종료되었습니다.")
+    main()
