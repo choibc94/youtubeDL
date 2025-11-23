@@ -10,6 +10,10 @@ from yt_dlp import YoutubeDL
 # ------------------------------------------------------------
 FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 
+DOWNLOAD_PATH = "./download"
+#DOWNLOAD_PATH = "/Volumes/APFS_250G/temp" # 임시
+
+
 # ydl_base_opts
 # ffmpeg 경로 강제 지정
 # macOS <-> VSCode 환경 차이 무시
@@ -17,13 +21,18 @@ FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 # SSL 검증 우회
 # 로그 최소화
 ydl_base_opts = {
-    "quiet": True,                      # 로그 최소화
+    "ignoreerrors": True,               # 오류발생 시 계속 진행(맴버십 전용, 삭제, 지역 제한, 접근 권한 부족, 네워크 일시 오류등이 발생해도 스킵하고 다음 영상으로 진행)
+    "continue_dl": True,                # 일부 분할 다운로드된 파일이 있을 경우, 해당 파일을 이어받기 위한 옵션
+    "retries": 3,                       # 네트워크 오류(http 오류, 연결 timeout등)발생 시 전체 요청을 재시도하는 횟수 지정
+    "fragment_retries": 3,              # HLS/MPEG-DASH와 같은 분할 다운로드(조각 단위 다운로드) 중 개별 조각 다운로드가 실패하면 해당 조각을 몇 번까지 재시도할지를 지정
+    "quiet": False,                     # 로그 최소화
     "no_warnings": True,                # 경고 제거
     "ffmpeg_location": FFMPEG_PATH,     # ffmpeg/ffprobe가 단일 경로 또는 디렉토리여도 정상 인식
     "prefer_ffmpeg": True,              # ffmpeg이 여러 위치에 있어도 지정한 경로를 우선 사용하도록 강제함.
     "nocheckcertificate": True,         # SSL 검증 비활성화
     "remote_components": "ejs:github",  # 최신 extractor component를 GitHub에서 가져오도록 지정
     "merge_output_format": "mp4",       # ffmpeg 병합의 명시적 포맷 지정
+    #"cookiefile": "cookies.txt",       # 실제 멤버십 계정이 있고, 해당 콘텐츠 접근 권한이 있는 경우에만
 }
 
 # ------------------------------------------------------------
@@ -275,14 +284,15 @@ def main():
 
     # 다운로드 경로 기본값 + 유효성 검사
     if not download_dir:
-        download_dir = "./download"
+        download_dir = DOWNLOAD_PATH
+        #download_dir = "./download"
 
     os.makedirs(download_dir, exist_ok=True)
 
     url = input("유튜브 URL을 입력하세요: ").strip()
 
     # 플레이리스트 자동 감지
-    if "playlist" in url.lower():
+    if "list=" in url.lower():
         print("플레이리스트 URL 감지됨.")
         conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
         download_playlist(url, download_dir, convert_to=(conv if conv else None))
