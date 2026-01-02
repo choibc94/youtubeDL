@@ -10,8 +10,8 @@ from yt_dlp import YoutubeDL
 # ------------------------------------------------------------
 FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 
-#DOWNLOAD_PATH = "./download"
-DOWNLOAD_PATH = "/Volumes/APFS_250G/temp" # 임시
+DOWNLOAD_PATH = "./download"
+#DOWNLOAD_PATH = "/Volumes/APFS_250G/temp" # 임시
 
 
 # ydl_base_opts
