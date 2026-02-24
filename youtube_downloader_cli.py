@@ -11,8 +11,17 @@ from yt_dlp import YoutubeDL
 FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 
 #DOWNLOAD_PATH = "./download"
-DOWNLOAD_PATH = "/Volumes/APFS_250G/temp" # 임시
+#DOWNLOAD_PATH = "/Volumes/APFS_250G/temp" # 임시
 
+# 다운로드 경로 목록
+DOWNLOAD_PATHS = [
+    "/Volumes/APFS_250G/temp",
+    #"/Users/choebyeongcheol/Downloads",
+    #"/Users/choebyeongcheol/Desktop",
+    "./download"
+]
+
+DEFAULT_INDEX = 0  # 기본 선택 경로
 
 # ydl_base_opts
 # ffmpeg 경로 강제 지정
@@ -274,18 +283,44 @@ def process_download_queue(tasks, download_dir, threads=3):
     print("모든 다운로드가 완료되었습니다.")
 
 # ------------------------------------------------------------
+# 다운로드 저장 위치 선택
+# ------------------------------------------------------------
+def select_download_path():
+    print("\n다운로드 저장 위치를 선택하세요:\n")
+
+    for idx, path in enumerate(DOWNLOAD_PATHS):
+        default_mark = " (기본값)" if idx == DEFAULT_INDEX else ""
+        print(f"{idx + 1}. {path}{default_mark}")
+
+    print("\n번호를 입력하세요 (엔터=기본값): ", end="")
+
+    choice = input().strip()
+
+    # 엔터 입력 → 기본값 사용
+    if not choice:
+        return DOWNLOAD_PATHS[DEFAULT_INDEX]
+
+    # 숫자 입력 검증
+    if choice.isdigit():
+        index = int(choice) - 1
+        if 0 <= index < len(DOWNLOAD_PATHS):
+            return DOWNLOAD_PATHS[index]
+
+    print("잘못된 입력입니다. 기본값을 사용합니다.")
+    return DOWNLOAD_PATHS[DEFAULT_INDEX]
+
+
+# ------------------------------------------------------------
 # CLI 입력
 # ------------------------------------------------------------
 
 def main():
     print_header("YouTube Downloader CLI")
 
-    download_dir = input("다운로드 저장 위치를 입력하세요 (미입력='./download'): ").strip()
+    #download_dir = input("다운로드 저장 위치를 입력하세요 (미입력='./download'): ").strip()
+    download_dir = select_download_path()
 
-    # 다운로드 경로 기본값 + 유효성 검사
-    if not download_dir:
-        download_dir = DOWNLOAD_PATH
-        #download_dir = "./download"
+    print(f"\n선택된 다운로드 경로: {download_dir}\n")
 
     os.makedirs(download_dir, exist_ok=True)
 
