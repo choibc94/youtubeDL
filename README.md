@@ -1,3 +1,6 @@
+
+---
+
 # YouTube Downloader 사용자 가이드
 
 본 프로그램은 `yt-dlp` 기반의 YouTube 다운로드 CLI 도구입니다.
@@ -7,9 +10,12 @@
 
 # 1. 설치 방법
 
-## 1.1 Python 설치
+---
 
-Python 3.8 이상이 필요합니다.
+# 1.1 Python 설치
+
+Python 3.10 이상 권장
+(최신 `yt-dlp`는 3.9 지원 종료)
 
 설치 확인:
 
@@ -19,32 +25,149 @@ python3 --version
 
 ---
 
-## 1.2 필수 패키지 설치
+## ■ macOS
+
+### 1) Homebrew 설치 여부 확인
 
 ```bash
-pip install yt-dlp
+brew --version
 ```
 
-가상환경을 사용하는 경우:
+### 2) Python 설치
 
 ```bash
-source venv/bin/activate
-pip install yt-dlp
+brew install python
+```
+
+설치 확인:
+
+```bash
+python3 --version
 ```
 
 ---
 
-## 1.3 ffmpeg 설치 (필수)
+## ■ Linux (Ubuntu / Debian 계열)
+
+```bash
+sudo apt update
+sudo apt install python3 python3-pip
+```
+
+설치 확인:
+
+```bash
+python3 --version
+```
+
+---
+
+## ■ Linux (Alpine / iSH 환경)
+
+```bash
+apk update
+apk add python3 py3-pip
+```
+
+설치 확인:
+
+```bash
+python3 --version
+```
+
+※ iSH 환경은 Python 버전이 낮을 수 있으므로 3.10 이상인지 반드시 확인
+
+---
+
+# 1.2 가상환경 사용 (권장)
+
+## macOS / Linux 공통
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+확인:
+
+```bash
+which python
+```
+
+가상환경 경로가 출력되어야 정상
+
+---
+
+# 1.3 필수 패키지 설치
+
+## macOS / Linux 공통
+
+```bash
+pip install --upgrade pip
+pip install yt-dlp
+```
+
+업데이트 확인:
+
+```bash
+yt-dlp -U
+```
+
+---
+
+# 1.4 ffmpeg 설치 (필수)
 
 영상 병합 및 mp3 변환에 필요합니다.
 
-### macOS
+---
+
+## ■ macOS
 
 ```bash
 brew install ffmpeg
 ```
 
-설치 확인:
+확인:
+
+```bash
+ffmpeg -version
+```
+
+Homebrew 기본 경로:
+
+```
+/opt/homebrew/bin
+```
+
+Intel Mac의 경우:
+
+```
+/usr/local/bin
+```
+
+---
+
+## ■ Linux (Ubuntu / Debian)
+
+```bash
+sudo apt install ffmpeg
+```
+
+확인:
+
+```bash
+ffmpeg -version
+```
+
+---
+
+## ■ Linux (Alpine / iSH)
+
+```bash
+apk add ffmpeg
+```
+
+확인:
 
 ```bash
 ffmpeg -version
@@ -54,8 +177,17 @@ ffmpeg -version
 
 # 2. 실행 방법
 
+## macOS / Linux 공통
+
 ```bash
 python3 youtube_downloader_cli.py
+```
+
+가상환경 사용 시:
+
+```bash
+source venv/bin/activate
+python youtube_downloader_cli.py
 ```
 
 ---
@@ -74,6 +206,20 @@ python3 youtube_downloader_cli.py
 
 * 입력하지 않으면 기본 경로 사용
 * 입력한 경로가 없으면 자동 생성
+
+### macOS 예시 경로
+
+```
+/Users/사용자명/Downloads
+/Volumes/외장디스크명/temp
+```
+
+### Linux 예시 경로
+
+```
+/home/사용자명/Downloads
+/mnt/storage/temp
+```
 
 ---
 
@@ -97,8 +243,6 @@ URL에 `list=` 파라미터가 포함되면 자동 감지됩니다.
 변환 옵션 (mp3/mp4/없음):
 ```
 
-선택 가능:
-
 | 입력값 | 설명           |
 | --- | ------------ |
 | mp3 | 모든 영상 mp3 변환 |
@@ -115,15 +259,11 @@ URL에 `list=` 파라미터가 포함되면 자동 감지됩니다.
 
 # 5. 단일 영상 다운로드
 
-단일 영상의 경우 다음 절차로 진행됩니다.
-
 ---
 
 ## 5.1 포맷 목록 출력
 
-프로그램이 사용 가능한 모든 포맷을 출력합니다.
-
-출력 항목 예시:
+출력 예:
 
 ```
 ID | EXT | RESOLUTION | FPS | FILESIZE | VCODEC | ACODEC
@@ -137,9 +277,6 @@ ID | EXT | RESOLUTION | FPS | FILESIZE | VCODEC | ACODEC
 VIDEO 포맷 ID 선택 (엔터=자동 최고화질):
 ```
 
-* 엔터 → 자동 최고 화질 선택
-* 직접 입력 → 특정 해상도 선택 가능
-
 ---
 
 ## 5.3 Audio 포맷 선택
@@ -147,9 +284,6 @@ VIDEO 포맷 ID 선택 (엔터=자동 최고화질):
 ```
 AUDIO 포맷 ID 선택 (엔터=자동 최고음질):
 ```
-
-* 엔터 → 자동 최고 음질
-* 직접 입력 → 특정 비트레이트 선택 가능
 
 ---
 
@@ -163,13 +297,13 @@ AUDIO 포맷 ID 선택 (엔터=자동 최고음질):
 | --- | --------------- |
 | mp3 | 오디오 추출 후 mp3 변환 |
 | mp4 | mp4 컨테이너로 변환    |
-| 없음  | 원본 스트림 유지       |
+| 없음  | 원본 유지           |
 
 ---
 
 # 6. 다운로드 동작 방식
 
-프로그램은 다음 전략으로 다운로드합니다.
+내부 포맷 전략:
 
 ```
 bv*+ba/best
@@ -180,41 +314,37 @@ bv*+ba/best
 * 최고 Video 스트림
 * 최고 Audio 스트림
 * 병합 후 출력
-* 실패 시 best 단일 스트림 사용
+* 실패 시 best 단일 스트림
 
 ---
 
 # 7. 다운로드 진행 상태
 
-다운로드 중 다음 정보가 표시됩니다.
-
 * 진행률 (%)
 * 다운로드 속도
 * 남은 시간
-* 파일 병합 상태
+* 병합 처리 상태
 
 ---
 
 # 8. 오류 처리 정책
 
-다음과 같은 안정화 옵션이 적용됩니다.
-
-* 네트워크 재시도 (3회)
+* 네트워크 재시도 3회
 * 조각 다운로드 재시도
-* 중단된 파일 이어받기
+* 중단 파일 이어받기
 * 일부 영상 오류 발생 시 자동 스킵
 
 ---
 
 # 9. 멤버십 / 로그인 영상 다운로드
 
-필요 시 쿠키 파일 사용 가능
+쿠키 파일 사용 가능:
 
 ```
 cookies.txt
 ```
 
-프로그램 내부 설정에 쿠키 경로 지정 필요.
+프로그램 설정에서 경로 지정 필요.
 
 ---
 
@@ -238,10 +368,10 @@ cookies.txt
 
 ### Q1. 포맷이 몇 개 안 나옵니다.
 
-* 네트워크 차단
-* 로그인 필요 영상
 * yt-dlp 버전 문제
-* 쿠키 미적용
+* 로그인 필요 영상
+* 네트워크 차단
+* Python 버전 문제 (3.10 이상 필요)
 
 확인:
 
@@ -256,13 +386,25 @@ yt-dlp -U
 * ffmpeg 설치 여부 확인
 * PATH 등록 확인
 
+macOS:
+
+```bash
+echo $PATH
+```
+
+Linux:
+
+```bash
+echo $PATH
+```
+
 ---
 
-### Q3. 다운로드가 중간에 멈춥니다.
+### Q3. iSH에서 오류가 발생합니다.
 
-* VPN 해제
-* 네트워크 확인
-* 재시도 기능 활성 상태 확인
+* Python 3.10 이상인지 확인
+* Alpine 패키지 최신화
+* 최신 yt-dlp 재설치
 
 ---
 
@@ -276,7 +418,26 @@ yt-dlp -U
 
 # 13. 권장 운영 방식
 
-* 프로젝트별 가상환경 사용
-* yt-dlp 정기 업데이트
-* ffmpeg 최신 버전 유지
-* 장시간 대량 다운로드 시 네트워크 안정성 확보
+### macOS 권장
+
+* Homebrew 기반 관리
+* 가상환경 사용
+* 정기적 `brew upgrade`
+
+### Linux 권장
+
+* 서버 환경에서는 별도 사용자 계정으로 실행
+* crontab 자동화 가능
+* 로그 파일 리다이렉션 운영
+
+---
+
+필요하시면 추가 제공 가능합니다:
+
+* 서버 운영용 배포 가이드
+* systemd 서비스 등록 방법
+* cron 자동 다운로드 구성
+* Docker 기반 실행 가이드
+* iSH 전용 최적화 문서
+
+원하시는 운영 환경을 말씀해 주시면 그에 맞춰 설계 문서 수준으로 정리해 드리겠습니다.

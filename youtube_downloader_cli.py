@@ -16,6 +16,7 @@ FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 # 다운로드 경로 목록
 DOWNLOAD_PATHS = [
     "/Volumes/APFS_250G/temp",
+    "/mnt/d/temp",
     #"/Users/choebyeongcheol/Downloads",
     #"/Users/choebyeongcheol/Desktop",
     "./download"
