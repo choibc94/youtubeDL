@@ -329,23 +329,54 @@ def select_download_path():
 def main():
     print_header("YouTube Downloader CLI")
 
-    #download_dir = input("다운로드 저장 위치를 입력하세요 (미입력='./download'): ").strip()
     download_dir = select_download_path()
-
     print(f"\n선택된 다운로드 경로: {download_dir}\n")
 
     os.makedirs(download_dir, exist_ok=True)
 
     url = input("유튜브 URL을 입력하세요: ").strip()
 
+    # -------------------------------
+    # 🔹 다운로드 방식 선택 추가
+    # -------------------------------
+    print("\n다운로드 방식을 선택하세요:")
+    print("1. 자동 (최적 영상+오디오)")
+    print("2. 수동 (포맷 직접 선택)")
+    print("\n번호 입력 (엔터=자동): ", end="")
+
+    mode = input().strip()
+
+    if not mode or mode == "1":
+        download_mode = "auto"
+    elif mode == "2":
+        download_mode = "manual"
+    else:
+        print("잘못된 입력입니다. 자동 모드로 진행합니다.")
+        download_mode = "auto"
+
+    # -------------------------------
     # 플레이리스트 자동 감지
+    # -------------------------------
     if "list=" in url.lower():
         print("플레이리스트 URL 감지됨.")
         conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
         download_playlist(url, download_dir, convert_to=(conv if conv else None))
         return
 
-    # 단일 영상 정보 조회
+    # -------------------------------
+    # 🔹 자동 모드
+    # -------------------------------
+    if download_mode == "auto":
+        print("\n자동 모드: 최적 품질로 다운로드합니다.")
+        conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
+        convert_to = conv if conv else None
+
+        download_video(url, download_dir, convert_to=convert_to)
+        return
+
+    # -------------------------------
+    # 🔹 수동 모드 (기존 로직 유지)
+    # -------------------------------
     info = fetch_video_info(url)
 
     title = info.get("title")
@@ -353,7 +384,6 @@ def main():
 
     formats = list_formats(info)
 
-    # 사용자가 포맷 선택
     video_fmt = input("\n선택할 VIDEO 포맷 ID (없으면 Enter): ").strip() or None
     audio_fmt = input("선택할 AUDIO 포맷 ID (없으면 Enter): ").strip() or None
     conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
