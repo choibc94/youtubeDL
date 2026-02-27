@@ -3,6 +3,7 @@ import os
 import sys
 import queue
 import threading
+import platform
 from yt_dlp import YoutubeDL
 
 # ------------------------------------------------------------
@@ -10,13 +11,23 @@ from yt_dlp import YoutubeDL
 # ------------------------------------------------------------
 FFMPEG_PATH = "/opt/homebrew/bin"  # Homebrew ffmpeg 경로(macOS 기준)
 
-#DOWNLOAD_PATH = "./download"
-#DOWNLOAD_PATH = "/Volumes/APFS_250G/temp" # 임시
+def detect_ffmpeg_path():
+    system = platform.system()
+
+    if system == "Darwin":        # macOS
+        return "/opt/homebrew/bin"
+    elif system == "Linux":       # WSL 포함
+        return "/usr/bin"
+    else:                         # Windows native
+        return None               # PATH 사용
+
+FFMPEG_PATH = detect_ffmpeg_path()
 
 # 다운로드 경로 목록
 DOWNLOAD_PATHS = [
     "/Volumes/APFS_250G/temp",
     "/mnt/d/temp",
+    "/mnt/h/temp",
     #"/Users/choebyeongcheol/Downloads",
     #"/Users/choebyeongcheol/Desktop",
     "./download"
@@ -37,7 +48,7 @@ ydl_base_opts = {
     "fragment_retries": 3,              # HLS/MPEG-DASH와 같은 분할 다운로드(조각 단위 다운로드) 중 개별 조각 다운로드가 실패하면 해당 조각을 몇 번까지 재시도할지를 지정
     "quiet": False,                     # 로그 최소화
     "no_warnings": True,                # 경고 제거
-    "ffmpeg_location": FFMPEG_PATH,     # ffmpeg/ffprobe가 단일 경로 또는 디렉토리여도 정상 인식
+    "ffmpeg_location": FFMPEG_PATH,     # ffmpeg/ffprobe가 단일 경로 또는 디렉토리여도 정상 인식(존재하면 직접 사용, 미존재시 PATH에서 찾음)
     "prefer_ffmpeg": True,              # ffmpeg이 여러 위치에 있어도 지정한 경로를 우선 사용하도록 강제함.
     "nocheckcertificate": True,         # SSL 검증 비활성화
     "remote_components": "ejs:github",  # 최신 extractor component를 GitHub에서 가져오도록 지정
