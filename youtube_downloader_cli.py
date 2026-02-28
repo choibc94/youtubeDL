@@ -300,23 +300,40 @@ def process_download_queue(tasks, download_dir, threads=3):
 def select_download_path():
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
+    total_paths = len(DOWNLOAD_PATHS)
+
+    # 기존 경로 출력
     for idx, path in enumerate(DOWNLOAD_PATHS):
         default_mark = " (기본값)" if idx == DEFAULT_INDEX else ""
         print(f"{idx + 1}. {path}{default_mark}")
 
-    print("\n번호를 입력하세요 (엔터=기본값): ", end="")
+    # 직접 입력 옵션 추가
+    custom_index = total_paths + 1
+    print(f"{custom_index}. 직접 입력")
 
+    print("\n번호를 입력하세요 (엔터=기본값): ", end="")
     choice = input().strip()
 
-    # 엔터 입력 → 기본값 사용
+    # 엔터 → 기본값
     if not choice:
         return DOWNLOAD_PATHS[DEFAULT_INDEX]
 
-    # 숫자 입력 검증
+    # 숫자 검증
     if choice.isdigit():
-        index = int(choice) - 1
-        if 0 <= index < len(DOWNLOAD_PATHS):
-            return DOWNLOAD_PATHS[index]
+        index = int(choice)
+
+        # 기존 리스트 범위
+        if 1 <= index <= total_paths:
+            return DOWNLOAD_PATHS[index - 1]
+
+        # 직접 입력 선택
+        if index == custom_index:
+            custom_path = input("다운로드 경로 : ").strip()
+            if custom_path:
+                return custom_path
+            else:
+                print("입력값이 없어 기본값을 사용합니다.")
+                return DOWNLOAD_PATHS[DEFAULT_INDEX]
 
     print("잘못된 입력입니다. 기본값을 사용합니다.")
     return DOWNLOAD_PATHS[DEFAULT_INDEX]
