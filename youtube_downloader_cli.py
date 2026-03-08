@@ -4,6 +4,7 @@ import sys
 import queue
 import threading
 import platform
+import shutil
 from yt_dlp import YoutubeDL
 
 # ------------------------------------------------------------
@@ -106,6 +107,25 @@ def safe_input(prompt=""):
         print("\n\nInterrupted by user. Exiting.")
         sys.exit(0)
 
+
+def get_free_space(path):
+    try:
+        total, used, free = shutil.disk_usage(path)
+        return free
+    except Exception:
+        return None
+
+
+def format_size(size):
+    if size is None:
+        return "N/A"
+
+    for unit in ['B','KB','MB','GB','TB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+
+    return f"{size:.1f} PB"    
 # ------------------------------------------------------------
 #  유튜브 정보 조회
 # ------------------------------------------------------------
@@ -345,8 +365,9 @@ def select_download_path():
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
     for idx, path in enumerate(paths):
-        default_mark = " (기본값)" if idx == 0 else ""
-        print(f"{idx + 1}. {path}{default_mark}")
+        free = get_free_space(path)
+        free_str = format_size(free)
+        print(f"{idx}. {path} ({free_str} free)")
 
     custom_index = len(paths) + 1
     print(f"{custom_index}. 직접 입력")
