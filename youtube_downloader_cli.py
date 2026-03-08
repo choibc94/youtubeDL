@@ -23,18 +23,6 @@ def detect_ffmpeg_path():
 
 FFMPEG_PATH = detect_ffmpeg_path()
 
-# 다운로드 경로 목록
-DOWNLOAD_PATHS = [
-    "/Volumes/APFS_250G/temp",
-    "/mnt/d/temp",
-    "/mnt/h/temp",
-    #"/Users/choebyeongcheol/Downloads",
-    #"/Users/choebyeongcheol/Desktop",
-    "./download"
-]
-
-DEFAULT_INDEX = 0  # 기본 선택 경로
-
 # ydl_base_opts
 # ffmpeg 경로 강제 지정
 # macOS <-> VSCode 환경 차이 무시
@@ -64,6 +52,59 @@ def print_header(title):
     print("\n" + "=" * 70)
     print(f"[ {title} ]")
     print("=" * 70)
+
+# 볼륨 감지 및 다운로드 경로 생성
+def detect_volumes():
+    system = platform.system()
+    volumes = []
+
+    if system == "Darwin":  # macOS
+        base = "/Volumes"
+        if os.path.exists(base):
+            for v in os.listdir(base):
+                volumes.append(os.path.join(base, v))
+
+    elif system == "Linux":
+        bases = ["/mnt", "/media", "/run/media"]
+        for base in bases:
+            if os.path.exists(base):
+                for root, dirs, _ in os.walk(base):
+                    for d in dirs:
+                        volumes.append(os.path.join(root, d))
+                    break
+
+    elif system == "Windows":
+        from string import ascii_uppercase
+        for letter in ascii_uppercase:
+            drive = f"{letter}:\\"
+            if os.path.exists(drive):
+                volumes.append(drive)
+
+    return volumes
+
+
+def build_download_paths():
+    paths = []
+
+    volumes = detect_volumes()
+
+    for v in volumes:
+        path = os.path.join(v, "Downloads", "Youtube")
+        paths.append(path)
+
+    # 홈 디렉토리 기본값 추가
+    home_default = os.path.join(os.path.expanduser("~"), "Downloads", "Youtube")
+    paths.insert(0, home_default)
+
+    return paths
+
+
+def safe_input(prompt=""):
+    try:
+        return input(prompt)
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user. Exiting.")
+        sys.exit(0)
 
 # ------------------------------------------------------------
 #  유튜브 정보 조회
@@ -298,45 +339,38 @@ def process_download_queue(tasks, download_dir, threads=3):
 # 다운로드 저장 위치 선택
 # ------------------------------------------------------------
 def select_download_path():
+
+    paths = build_download_paths()
+
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
-    total_paths = len(DOWNLOAD_PATHS)
-
-    # 기존 경로 출력
-    for idx, path in enumerate(DOWNLOAD_PATHS):
-        default_mark = " (기본값)" if idx == DEFAULT_INDEX else ""
+    for idx, path in enumerate(paths):
+        default_mark = " (기본값)" if idx == 0 else ""
         print(f"{idx + 1}. {path}{default_mark}")
 
-    # 직접 입력 옵션 추가
-    custom_index = total_paths + 1
+    custom_index = len(paths) + 1
     print(f"{custom_index}. 직접 입력")
 
     print("\n번호를 입력하세요 (엔터=기본값): ", end="")
-    choice = input().strip()
+    choice = safe_input().strip()
 
-    # 엔터 → 기본값
     if not choice:
-        return DOWNLOAD_PATHS[DEFAULT_INDEX]
+        return paths[0]
 
-    # 숫자 검증
     if choice.isdigit():
+
         index = int(choice)
 
-        # 기존 리스트 범위
-        if 1 <= index <= total_paths:
-            return DOWNLOAD_PATHS[index - 1]
+        if 1 <= index <= len(paths):
+            return paths[index - 1]
 
-        # 직접 입력 선택
         if index == custom_index:
-            custom_path = input("다운로드 경로 : ").strip()
-            if custom_path:
-                return custom_path
-            else:
-                print("입력값이 없어 기본값을 사용합니다.")
-                return DOWNLOAD_PATHS[DEFAULT_INDEX]
+            custom = safe_input("다운로드 경로 : ").strip()
+            if custom:
+                return custom
 
     print("잘못된 입력입니다. 기본값을 사용합니다.")
-    return DOWNLOAD_PATHS[DEFAULT_INDEX]
+    return paths[0]
 
 
 # ------------------------------------------------------------
@@ -351,7 +385,7 @@ def main():
 
     os.makedirs(download_dir, exist_ok=True)
 
-    url = input("유튜브 URL을 입력하세요: ").strip()
+    url = safe_input("유튜브 URL을 입력하세요: ").strip()
 
     # -------------------------------
     # 🔹 다운로드 방식 선택 추가
@@ -361,7 +395,7 @@ def main():
     print("2. 수동 (포맷 직접 선택)")
     print("\n번호 입력 (엔터=자동): ", end="")
 
-    mode = input().strip()
+    mode = safe_input().strip()
 
     if not mode or mode == "1":
         download_mode = "auto"
@@ -376,7 +410,7 @@ def main():
     # -------------------------------
     if "list=" in url.lower():
         print("플레이리스트 URL 감지됨.")
-        conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
+        conv = safe_input("변환 옵션 (mp3/mp4/없음): ").strip()
         download_playlist(url, download_dir, convert_to=(conv if conv else None))
         return
 
@@ -385,7 +419,7 @@ def main():
     # -------------------------------
     if download_mode == "auto":
         print("\n자동 모드: 최적 품질로 다운로드합니다.")
-        conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
+        conv = safe_input("변환 옵션 (mp3/mp4/없음): ").strip()
         convert_to = conv if conv else None
 
         download_video(url, download_dir, convert_to=convert_to)
@@ -401,12 +435,37 @@ def main():
 
     formats = list_formats(info)
 
-    video_fmt = input("\n선택할 VIDEO 포맷 ID (없으면 Enter): ").strip() or None
-    audio_fmt = input("선택할 AUDIO 포맷 ID (없으면 Enter): ").strip() or None
-    conv = input("변환 옵션 (mp3/mp4/없음): ").strip()
+    video_fmt = safe_input("\n선택할 VIDEO 포맷 ID (없으면 Enter): ").strip() or None
+    audio_fmt = safe_input("선택할 AUDIO 포맷 ID (없으면 Enter): ").strip() or None
+    conv = safe_input("변환 옵션 (mp3/mp4/없음): ").strip()
     convert_to = conv if conv else None
 
     download_video(url, download_dir, video_fmt, audio_fmt, convert_to)
+
+def main():
+
+    while True:
+
+        try:
+
+            print("\n===== Youtube Downloader =====\n")
+
+            download_dir = select_download_path()
+
+            url = safe_input("유튜브 URL을 입력하세요: ").strip()
+
+            if not url:
+                print("URL이 비어있습니다.")
+                continue
+
+            download_video(url, download_dir)
+
+            print("\n다운로드 완료\n")
+
+        except KeyboardInterrupt:
+            print("\n⛔ 작업이 취소되었습니다.")
+            print("메인 메뉴로 돌아갑니다.\n")
+            continue
 
 if __name__ == "__main__":
     main()
