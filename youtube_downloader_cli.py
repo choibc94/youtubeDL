@@ -5,6 +5,7 @@ import queue
 import threading
 import platform
 import shutil
+import subprocess
 from yt_dlp import YoutubeDL
 
 # ------------------------------------------------------------
@@ -54,28 +55,64 @@ def print_header(title):
     print(f"[ {title} ]")
     print("=" * 70)
 
+
 # 볼륨 감지 및 다운로드 경로 생성
+import subprocess
+import os
+import platform
+
 def detect_volumes():
+
     system = platform.system()
     volumes = []
 
-    if system == "Darwin":  # macOS
-        base = "/Volumes"
-        if os.path.exists(base):
-            for v in os.listdir(base):
-                volumes.append(os.path.join(base, v))
+    if system == "Darwin":
+
+        try:
+            result = subprocess.check_output(["mount"], text=True)
+
+            for line in result.splitlines():
+
+                if not line.startswith("/dev/"):
+                    continue
+
+                parts = line.split(" on ")
+                if len(parts) < 2:
+                    continue
+
+                mount_point = parts[1].split(" (")[0]
+
+                if mount_point.startswith("/Volumes/"):
+                    volumes.append(mount_point)
+
+        except Exception:
+            pass
 
     elif system == "Linux":
-        bases = ["/mnt", "/media", "/run/media"]
-        for base in bases:
-            if os.path.exists(base):
-                for root, dirs, _ in os.walk(base):
-                    for d in dirs:
-                        volumes.append(os.path.join(root, d))
-                    break
+
+        try:
+            with open("/proc/mounts") as f:
+
+                for line in f:
+
+                    parts = line.split()
+                    device = parts[0]
+                    mount_point = parts[1]
+
+                    if not device.startswith("/dev/"):
+                        continue
+
+                    if mount_point.startswith(("/mnt", "/media", "/run/media")):
+                        volumes.append(mount_point)
+
+        except Exception:
+            pass
 
     elif system == "Windows":
+
         from string import ascii_uppercase
+        import os
+
         for letter in ascii_uppercase:
             drive = f"{letter}:\\"
             if os.path.exists(drive):
@@ -85,20 +122,33 @@ def detect_volumes():
 
 
 def build_download_paths():
-    paths = []
 
+    paths = []
     volumes = detect_volumes()
 
     for v in volumes:
-        path = os.path.join(v, "Downloads", "Youtube")
-        paths.append(path)
 
-    # 홈 디렉토리 기본값 추가
+        # 숨김 볼륨 제외
+        if os.path.basename(v).startswith("."):
+            continue
+
+        path = os.path.join(v, "Downloads", "Youtube")
+
+        free = get_free_space(v)
+
+        # 용량 조회 불가능하면 제외
+        if free is None:
+            continue
+
+        paths.append((path, free))
+
+    # 홈 디렉토리 기본값
     home_default = os.path.join(os.path.expanduser("~"), "Downloads", "Youtube")
-    paths.insert(0, home_default)
+    home_free = get_free_space(os.path.expanduser("~"))
+
+    paths.insert(0, (home_default, home_free))
 
     return paths
-
 
 def safe_input(prompt=""):
     try:
@@ -364,8 +414,7 @@ def select_download_path():
 
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
-    for idx, path in enumerate(paths, 1):
-        free = get_free_space(path)
+    for idx, (path, free) in enumerate(paths, 1):
         free_str = format_size(free)
         print(f"{idx}. {path} ({free_str} free)")
 
@@ -393,75 +442,6 @@ def select_download_path():
     print("잘못된 입력입니다. 기본값을 사용합니다.")
     return paths[0]
 
-
-# ------------------------------------------------------------
-# CLI 입력
-# ------------------------------------------------------------
-
-def main():
-    print_header("YouTube Downloader CLI")
-
-    download_dir = select_download_path()
-    print(f"\n선택된 다운로드 경로: {download_dir}\n")
-
-    os.makedirs(download_dir, exist_ok=True)
-
-    url = safe_input("유튜브 URL을 입력하세요: ").strip()
-
-    # -------------------------------
-    # 🔹 다운로드 방식 선택 추가
-    # -------------------------------
-    print("\n다운로드 방식을 선택하세요:")
-    print("1. 자동 (최적 영상+오디오)")
-    print("2. 수동 (포맷 직접 선택)")
-    print("\n번호 입력 (엔터=자동): ", end="")
-
-    mode = safe_input().strip()
-
-    if not mode or mode == "1":
-        download_mode = "auto"
-    elif mode == "2":
-        download_mode = "manual"
-    else:
-        print("잘못된 입력입니다. 자동 모드로 진행합니다.")
-        download_mode = "auto"
-
-    # -------------------------------
-    # 플레이리스트 자동 감지
-    # -------------------------------
-    if "list=" in url.lower():
-        print("플레이리스트 URL 감지됨.")
-        conv = safe_input("변환 옵션 (mp3/mp4/없음): ").strip()
-        download_playlist(url, download_dir, convert_to=(conv if conv else None))
-        return
-
-    # -------------------------------
-    # 🔹 자동 모드
-    # -------------------------------
-    if download_mode == "auto":
-        print("\n자동 모드: 최적 품질로 다운로드합니다.")
-        conv = safe_input("변환 옵션 (mp3/mp4/없음): ").strip()
-        convert_to = conv if conv else None
-
-        download_video(url, download_dir, convert_to=convert_to)
-        return
-
-    # -------------------------------
-    # 🔹 수동 모드 (기존 로직 유지)
-    # -------------------------------
-    info = fetch_video_info(url)
-
-    title = info.get("title")
-    print(f"\n영상 제목: {title}")
-
-    formats = list_formats(info)
-
-    video_fmt = safe_input("\n선택할 VIDEO 포맷 ID (없으면 Enter): ").strip() or None
-    audio_fmt = safe_input("선택할 AUDIO 포맷 ID (없으면 Enter): ").strip() or None
-    conv = safe_input("변환 옵션 (mp3/mp4/없음): ").strip()
-    convert_to = conv if conv else None
-
-    download_video(url, download_dir, video_fmt, audio_fmt, convert_to)
 
 def main():
 
