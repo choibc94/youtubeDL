@@ -364,7 +364,7 @@ def select_download_path():
 
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
-    for idx, path in enumerate(paths):
+    for idx, path in enumerate(paths, 1):
         free = get_free_space(path)
         free_str = format_size(free)
         print(f"{idx}. {path} ({free_str} free)")
