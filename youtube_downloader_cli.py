@@ -340,6 +340,7 @@ def progress_hook(d):
         print("\n병합 및 후처리 중...")
 
 def download_video(url, download_dir, video_fmt=None, audio_fmt=None, convert_to=None):
+    os.makedirs(download_dir, exist_ok=True)
     print_header(f"다운로드 시작: {url}")
 
     opts = build_download_opts(download_dir, video_fmt, audio_fmt, convert_to)
@@ -432,7 +433,7 @@ def select_download_path():
         index = int(choice)
 
         if 1 <= index <= len(paths):
-            return paths[index - 1]
+            return paths[index - 1][0]
 
         if index == custom_index:
             custom = safe_input("다운로드 경로 : ").strip()
@@ -461,7 +462,7 @@ def main():
 
             download_video(url, download_dir)
 
-            print("\n다운로드 완료\n")
+            print("\n유튜브 URL 관련 파일 다운로드 완료\n")
 
         except KeyboardInterrupt:
             print("\n⛔ 작업이 취소되었습니다.")
