@@ -20,7 +20,9 @@ def detect_ffmpeg_path():
         return "/opt/homebrew/bin"
     elif system == "Linux":       # WSL 포함
         return "/usr/bin"
-    else:                         # Windows native
+    elif system == "Windows":     # Windows native
+        return None
+    else:                         # 그 외
         return None               # PATH 사용
 
 FFMPEG_PATH = detect_ffmpeg_path()
@@ -54,12 +56,6 @@ def print_header(title):
     print("\n" + "=" * 70)
     print(f"[ {title} ]")
     print("=" * 70)
-
-
-# 볼륨 감지 및 다운로드 경로 생성
-import subprocess
-import os
-import platform
 
 def detect_volumes():
 
@@ -426,7 +422,7 @@ def select_download_path():
     choice = safe_input().strip()
 
     if not choice:
-        return paths[0]
+        return paths[0][0]
 
     if choice.isdigit():
 
@@ -441,7 +437,7 @@ def select_download_path():
                 return custom
 
     print("잘못된 입력입니다. 기본값을 사용합니다.")
-    return paths[0]
+    return paths[0][0]
 
 
 def main():
