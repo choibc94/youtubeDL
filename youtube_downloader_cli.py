@@ -8,13 +8,19 @@ import shutil
 import subprocess
 
 
-VENV_DIR = "venv"
+VENV_DIR = os.path.join(os.path.dirname(__file__), "venv")
 
 # ------------------------------------------------------------
 # venv 확인
 # ------------------------------------------------------------
 def is_venv():
     return sys.prefix != sys.base_prefix
+
+def get_venv_python():
+    if os.name == "nt":
+        return os.path.join(VENV_DIR, "Scripts", "python.exe")
+    else:
+        return os.path.join(VENV_DIR, "bin", "python")
 
 # ------------------------------------------------------------
 # venv 환경 구성
@@ -23,7 +29,7 @@ def ensure_venv():
     if is_venv():
         return
 
-    print("[INFO] venv 환경이 아닙니다. 자동 구성 시작...")
+    print("[INFO] 실행 환경 구성 중...")
 
     # 1. venv 생성
     if not os.path.exists(VENV_DIR):
@@ -31,7 +37,7 @@ def ensure_venv():
         subprocess.check_call([sys.executable, "-m", "venv", VENV_DIR])
 
     # 2. venv python 경로
-    venv_python = os.path.join(VENV_DIR, "bin", "python")
+    venv_python = get_venv_python()
 
     if not os.path.exists(venv_python):
         print("[ERROR] venv python 실행 파일이 없습니다.")
@@ -42,7 +48,7 @@ def ensure_venv():
     subprocess.check_call([venv_python, "-m", "pip", "install", "-U", "pip"])
     subprocess.check_call([venv_python, "-m", "pip", "install", "-U", "yt-dlp"])
 
-    print("[INFO] venv 환경으로 재실행합니다...\n")
+    print("[INFO] 환경 구성 완료. 재실행합니다.\n")
 
     # 4. 자기 자신을 venv python으로 재실행
     os.execv(venv_python, [venv_python] + sys.argv)
@@ -590,7 +596,7 @@ def main():
             print("\n유튜브 URL 관련 파일 다운로드 완료\n")
 
         except KeyboardInterrupt:
-            print("\n⛔ 작업이 취소되었습니다.")
+            print("\n 작업이 취소되었습니다.")
             print("메인 메뉴로 돌아갑니다.\n")
             continue
 
