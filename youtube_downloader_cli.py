@@ -6,7 +6,106 @@ import threading
 import platform
 import shutil
 import subprocess
-from yt_dlp import YoutubeDL
+
+
+VENV_DIR = "venv"
+
+# ------------------------------------------------------------
+# venv 확인
+# ------------------------------------------------------------
+def is_venv():
+    return sys.prefix != sys.base_prefix
+
+# ------------------------------------------------------------
+# venv 환경 구성
+# ------------------------------------------------------------
+def ensure_venv():
+    if is_venv():
+        return
+
+    print("[INFO] venv 환경이 아닙니다. 자동 구성 시작...")
+
+    # 1. venv 생성
+    if not os.path.exists(VENV_DIR):
+        print("[INFO] venv 생성 중...")
+        subprocess.check_call([sys.executable, "-m", "venv", VENV_DIR])
+
+    # 2. venv python 경로
+    venv_python = os.path.join(VENV_DIR, "bin", "python")
+
+    if not os.path.exists(venv_python):
+        print("[ERROR] venv python 실행 파일이 없습니다.")
+        sys.exit(1)
+
+    # 3. pip 업그레이드 + yt-dlp 설치
+    print("[INFO] 패키지 설치 중...")
+    subprocess.check_call([venv_python, "-m", "pip", "install", "-U", "pip"])
+    subprocess.check_call([venv_python, "-m", "pip", "install", "-U", "yt-dlp"])
+
+    print("[INFO] venv 환경으로 재실행합니다...\n")
+
+    # 4. 자기 자신을 venv python으로 재실행
+    os.execv(venv_python, [venv_python] + sys.argv)
+
+# ------------------------------------------------------------
+# 패키지 설치
+# ------------------------------------------------------------
+def ensure_python_package(package_name, import_name=None):
+    try:
+        __import__(import_name or package_name)
+    except ImportError:
+        print(f"[INFO] {package_name} 패키지가 설치되어 있지 않습니다. 자동 설치를 진행합니다...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+        except Exception as e:
+            print(f"[ERROR] {package_name} 설치 실패: {e}")
+            sys.exit(1)
+
+# ------------------------------------------------------------
+# 패키지 업데이트
+# ------------------------------------------------------------
+def update_package(package_name):
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "-U", package_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except:
+        pass
+
+# ------------------------------------------------------------
+# ffmpeg 설치 함수
+# ------------------------------------------------------------
+def ensure_ffmpeg():
+    system = platform.system()
+
+    def is_ffmpeg_exists():
+        return shutil.which("ffmpeg") is not None
+
+    if is_ffmpeg_exists():
+        return
+
+    print("[INFO] ffmpeg가 설치되어 있지 않습니다. 자동 설치를 시도합니다...")
+
+    try:
+        if system == "Darwin":
+            # macOS (Homebrew)
+            subprocess.check_call(["brew", "install", "ffmpeg"])
+
+        elif system == "Linux":
+            # Ubuntu / Debian 계열
+            subprocess.check_call(["sudo", "apt", "update"])
+            subprocess.check_call(["sudo", "apt", "install", "-y", "ffmpeg"])
+
+        elif system == "Windows":
+            print("[ERROR] Windows에서는 자동 설치를 지원하지 않습니다.")
+            print("https://ffmpeg.org/download.html 에서 직접 설치하세요.")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"[ERROR] ffmpeg 설치 실패: {e}")
+        sys.exit(1)
 
 # ------------------------------------------------------------
 # 기본 환경 설정
@@ -439,8 +538,38 @@ def select_download_path():
     print("잘못된 입력입니다. 기본값을 사용합니다.")
     return paths[0][0]
 
+# ------------------------------------------------------------
+# 초기화
+# ------------------------------------------------------------
+def initialize_environment():
+    global YoutubeDL
+
+    print("[INFO] 실행 환경 점검 중...")
+
+    if not is_venv():
+        print("[ERROR] 현재 Python은 system 환경입니다.")
+        print("$ python3 -m venv venv")
+        print("$ source venv/bin/activate")
+        print(" 다시 실행하세요.")
+        sys.exit(1)
+
+    # 1. 설치 보장
+    ensure_python_package("yt-dlp", "yt_dlp")
+
+    # 2. 선택적 업데이트 (옵션)
+    update_package("yt-dlp")
+
+    # 3. import
+    from yt_dlp import YoutubeDL
+
+    # 4. ffmpeg (OS 패키지 : 필요 시 수동 업데이트)
+    ensure_ffmpeg()
+
+
 
 def main():
+
+    initialize_environment()
 
     while True:
 
@@ -466,4 +595,8 @@ def main():
             continue
 
 if __name__ == "__main__":
+
+    # venv 환경
+    ensure_venv()
+
     main()
