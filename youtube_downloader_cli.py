@@ -74,16 +74,34 @@ def ensure_venv():
 def ensure_python_package(package_name, import_name=None):
     try:
         __import__(import_name or package_name)
+        return
     except ImportError:
-        print(f"[INFO] {package_name} 패키지가 설치되어 있지 않습니다. 자동 설치를 진행합니다...")
+        print(f"[INFO] {package_name} 설치 시도")
+
+    pip_cmd = [sys.executable, "-m", "pip", "install", "-U", package_name]
+
+    # venv 여부 판단
+    in_venv = sys.prefix != sys.base_prefix
+
+    # venv가 아닐 때만 --user 사용
+    if not in_venv:
+        pip_cmd.insert(4, "--user")
+
+    try:
+        subprocess.check_call(pip_cmd)
+    except subprocess.CalledProcessError:
+        print(f"[WARN] 일반 설치 실패 → --break-system-packages 시도")
+
         try:
             subprocess.check_call([
-                sys.executable, "-m", "pip", "install", "--user", "-U", package_name
+                sys.executable, "-m", "pip", "install",
+                "--break-system-packages", "-U", package_name
             ])
-        except Exception as e:
-            print(f"[ERROR] {package_name} 설치 실패: {e}")
-            print(f"    pip install --user {package_name}")
-            sys.exit(1)    
+        except Exception:
+            print(f"[ERROR] {package_name} 자동 설치 실패")
+            print(f"수동 설치 필요:")
+            print(f"  pip install {package_name}")
+            sys.exit(1)            
 
 # ------------------------------------------------------------
 # 패키지 업데이트
