@@ -77,10 +77,13 @@ def ensure_python_package(package_name, import_name=None):
     except ImportError:
         print(f"[INFO] {package_name} 패키지가 설치되어 있지 않습니다. 자동 설치를 진행합니다...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install", "--user", "-U", package_name
+            ])
         except Exception as e:
             print(f"[ERROR] {package_name} 설치 실패: {e}")
-            sys.exit(1)
+            print(f"    pip install --user {package_name}")
+            sys.exit(1)    
 
 # ------------------------------------------------------------
 # 패키지 업데이트
