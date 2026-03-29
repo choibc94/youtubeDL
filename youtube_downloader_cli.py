@@ -284,7 +284,7 @@ def detect_volumes():
 def detect_android_storage():
     volumes = []
 
-    # 1. 내부 저장소
+    # 내부 저장소
     internal = os.path.expanduser("~/storage/downloads")
     if os.path.exists(internal):
         volumes.append({
@@ -292,9 +292,6 @@ def detect_android_storage():
             "label": "Internal Storage",
             "type": "internal"
         })
-
-    # 2. USB (표시만)
-    volumes.extend(detect_usb_storage())
 
     return volumes
 
@@ -602,6 +599,7 @@ def select_download_path():
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
     for i, (path, free, label) in enumerate(paths):
+
         label_str = f"[{label}] " if label else ""
         print(f"{i+1}. {label_str}{path} ({format_size(free)} free)")
 
