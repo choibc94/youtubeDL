@@ -283,21 +283,20 @@ def detect_volumes():
 #Android 다운로드 별도 작업
 def detect_android_storage():
     volumes = []
-    base = os.path.expanduser("~/storage")
 
-    if not os.path.exists(base):
-        print("[WARN] termux-setup-storage 필요")
-        return volumes
+    # 1. 내부 저장소
+    internal = os.path.expanduser("~/storage/downloads")
+    if os.path.exists(internal):
+        volumes.append({
+            "path": internal,
+            "label": "Internal Storage",
+            "type": "internal"
+        })
 
-    for name in os.listdir(base):
-        path = os.path.join(base, name)
-
-        # 핵심: symlink 그대로 사용
-        if os.path.exists(path):
-            volumes.append(path)
+    # 2. USB (표시만)
+    volumes.extend(detect_usb_storage())
 
     return volumes
-
 
 def build_download_paths():
 
@@ -306,25 +305,34 @@ def build_download_paths():
 
     for v in volumes:
 
+        # -------------------------------
+        # ✔ dict / str 대응
+        # -------------------------------
+        if isinstance(v, dict):
+            base_path = v.get("path")
+            label = v.get("label", "")
+        else:
+            base_path = v
+            label = ""
+
         # 숨김 볼륨 제외
-        if os.path.basename(v).startswith("."):
+        if os.path.basename(base_path).startswith("."):
             continue
 
-        path = os.path.join(v, "Downloads", "Youtube")
+        path = os.path.join(base_path, "Downloads", "Youtube")
+        free = get_free_space(base_path)
 
-        free = get_free_space(v)
-
-        # 용량 조회 불가능하면 제외
         if free is None:
             free = 0
 
-        paths.append((path, free))
+        paths.append((path, free, label))
 
-    # 홈 디렉토리 기본값
-    home_default = os.path.join(os.path.expanduser("~"), "Downloads", "Youtube")
-    home_free = get_free_space(os.path.expanduser("~"))
+    # 홈 디렉토리
+    home = os.path.expanduser("~")
+    home_default = os.path.join(home, "Downloads", "Youtube")
+    home_free = get_free_space(home)
 
-    paths.insert(0, (home_default, home_free))
+    paths.insert(0, (home_default, home_free, "HOME"))
 
     return paths
 
@@ -593,9 +601,9 @@ def select_download_path():
 
     print("\n다운로드 저장 위치를 선택하세요:\n")
 
-    for idx, (path, free) in enumerate(paths, 1):
-        free_str = format_size(free)
-        print(f"{idx}. {path} ({free_str} free)")
+    for i, (path, free, label) in enumerate(paths):
+        label_str = f"[{label}] " if label else ""
+        print(f"{i+1}. {label_str}{path} ({format_size(free)} free)")
 
     custom_index = len(paths) + 1
     print(f"{custom_index}. 직접 입력")
