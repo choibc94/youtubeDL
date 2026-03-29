@@ -283,7 +283,7 @@ def detect_volumes():
 #Android 다운로드 별도 작업
 def detect_android_storage():
     paths = []
-    base = "/storage"
+    base = "~/storage"
 
     if not os.path.exists(base):
         return paths
