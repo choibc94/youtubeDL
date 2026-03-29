@@ -282,27 +282,21 @@ def detect_volumes():
 
 #Android 다운로드 별도 작업
 def detect_android_storage():
-    paths = []
-    base = "~/storage"
+    volumes = []
+    base = os.path.expanduser("~/storage")
 
     if not os.path.exists(base):
-        return paths
+        print("[WARN] termux-setup-storage 필요")
+        return volumes
 
-    try:
-        for name in os.listdir(base):
-            full_path = os.path.join(base, name)
+    for name in os.listdir(base):
+        path = os.path.join(base, name)
 
-            # 기본 internal storage 제외
-            if name == "emulated":
-                continue
+        # 핵심: symlink 그대로 사용
+        if os.path.exists(path):
+            volumes.append(path)
 
-            if os.path.isdir(full_path):
-                paths.append(full_path)
-
-    except PermissionError:
-        print("[WARN] /storage 접근 권한 없음 (termux-setup-storage 필요)")
-
-    return paths
+    return volumes
 
 
 def build_download_paths():
