@@ -22,6 +22,13 @@ def get_venv_python():
     else:
         return os.path.join(VENV_DIR, "bin", "python")
 
+def is_restricted_env():
+    return (
+        "ANDROID_ROOT" in os.environ
+        or "PREFIX" in os.environ
+        or "IOS" in os.environ
+        or "PYODIDE" in os.environ
+    )
 # ------------------------------------------------------------
 # venv 환경 구성
 # ------------------------------------------------------------
@@ -29,6 +36,14 @@ def ensure_venv():
     if is_venv():
         return
 
+    # 제한 환경 (iPad 등)
+    if is_restricted_env():
+        print("[INFO] 제한된 환경 → venv 생략")
+        return
+
+    if sys.prefix != sys.base_prefix:
+        return
+    
     print("[INFO] 실행 환경 구성 중...")
 
     # 1. venv 생성
