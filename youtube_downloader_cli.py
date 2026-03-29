@@ -217,7 +217,6 @@ def print_header(title):
     print("=" * 70)
 
 def detect_volumes():
-
     system = platform.system()
     volumes = []
 
@@ -243,6 +242,9 @@ def detect_volumes():
         except Exception:
             pass
 
+    if "ANDROID_ROOT" in os.environ:
+        volumes.extend(detect_android_storage())
+    
     elif system == "Linux":
 
         try:
@@ -256,6 +258,10 @@ def detect_volumes():
 
                     if not device.startswith("/dev/"):
                         continue
+
+                    # Android 대응 추가
+                    if mount_point.startswith("/storage"):
+                        volumes.append(mount_point)
 
                     if mount_point.startswith(("/mnt", "/media", "/run/media")):
                         volumes.append(mount_point)
@@ -273,7 +279,28 @@ def detect_volumes():
             if os.path.exists(drive):
                 volumes.append(drive)
 
+
     return volumes
+
+#Android 다운로드 별도 작업
+def detect_android_storage():
+    base = "/storage"
+    result = []
+
+    if os.path.exists(base):
+        for name in os.listdir(base):
+
+            # emulated 제외
+            if name == "emulated":
+                continue
+
+            path = os.path.join(base, name)
+
+            if os.path.isdir(path):
+                free = get_free_space(path)
+                result.append((path, free))
+
+    return result
 
 
 def build_download_paths():
@@ -293,7 +320,7 @@ def build_download_paths():
 
         # 용량 조회 불가능하면 제외
         if free is None:
-            continue
+            free = 0
 
         paths.append((path, free))
 
