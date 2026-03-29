@@ -14,6 +14,7 @@ VENV_DIR = os.path.join(os.path.dirname(__file__), "venv")
 # venv 확인
 # ------------------------------------------------------------
 def is_venv():
+    ensure_ffmpeg()
     return sys.prefix != sys.base_prefix
 
 def get_venv_python():
@@ -26,8 +27,8 @@ def is_restricted_env():
     return (
         "ANDROID_ROOT" in os.environ
         or "PREFIX" in os.environ
-        or "IOS" in os.environ
         or "PYODIDE" in os.environ
+        or platform.system() not in ("Linux", "Darwin", "Windows")
     )
 # ------------------------------------------------------------
 # venv 환경 구성
@@ -40,9 +41,6 @@ def ensure_venv():
     if is_restricted_env():
         print("[INFO] 제한된 환경 → venv 생략")
         return
-
-    if sys.prefix != sys.base_prefix:
-        return
     
     print("[INFO] 실행 환경 구성 중...")
 
@@ -54,18 +52,35 @@ def ensure_venv():
     # 2. venv python 경로
     venv_python = get_venv_python()
 
-    if not os.path.exists(venv_python):
-        print("[ERROR] venv python 실행 파일이 없습니다.")
-        sys.exit(1)
+
+    try:
+        subprocess.check_call(
+            [venv_python, "-m", "pip", "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except:
+        print("[WARN] pip 없음 → bootstrap 진행")
+
+        try:
+            subprocess.check_call([venv_python, "-m", "ensurepip", "--upgrade"])
+        except:
+            print("[WARN] ensurepip 실패 → get-pip 사용")
+
+            subprocess.check_call([
+                venv_python,
+                "-c",
+                "import urllib.request as u; u.urlretrieve('https://bootstrap.pypa.io/get-pip.py','get-pip.py')"
+            ])
+            subprocess.check_call([venv_python, "get-pip.py"])
 
     # 3. pip 업그레이드 + yt-dlp 설치
     print("[INFO] 패키지 설치 중...")
     subprocess.check_call([venv_python, "-m", "pip", "install", "-U", "pip"])
     subprocess.check_call([venv_python, "-m", "pip", "install", "-U", "yt-dlp"])
 
-    print("[INFO] 환경 구성 완료. 재실행합니다.\n")
-
     # 4. 자기 자신을 venv python으로 재실행
+    print("[INFO] 환경 구성 완료. 재실행합니다.\n")
     os.execv(venv_python, [venv_python] + sys.argv)
 
 # ------------------------------------------------------------
@@ -85,7 +100,7 @@ def ensure_python_package(package_name, import_name=None):
 
     # venv가 아닐 때만 --user 사용
     if not in_venv:
-        pip_cmd.insert(4, "--user")
+        pip_cmd = [sys.executable, "-m", "pip", "install", "--user", "-U", package_name]
 
     try:
         subprocess.check_call(pip_cmd)
@@ -136,9 +151,12 @@ def ensure_ffmpeg():
             subprocess.check_call(["brew", "install", "ffmpeg"])
 
         elif system == "Linux":
-            # Ubuntu / Debian 계열
-            subprocess.check_call(["sudo", "apt", "update"])
-            subprocess.check_call(["sudo", "apt", "install", "-y", "ffmpeg"])
+            if shutil.which("apt"):
+                subprocess.check_call(["sudo", "apt", "update"])
+                subprocess.check_call(["sudo", "apt", "install", "-y", "ffmpeg"])
+            else:
+                print("[WARN] 패키지 매니저 없음 → ffmpeg 수동 설치 필요")
+                return
 
         elif system == "Windows":
             print("[ERROR] Windows에서는 자동 설치를 지원하지 않습니다.")
@@ -605,7 +623,7 @@ def initialize_environment():
     from yt_dlp import YoutubeDL
 
     # 4. ffmpeg (OS 패키지 : 필요 시 수동 업데이트)
-    ensure_ffmpeg()
+    #ensure_ffmpeg()
 
 
 
