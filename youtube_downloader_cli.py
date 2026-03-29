@@ -272,13 +272,11 @@ def detect_volumes():
     elif system == "Windows":
 
         from string import ascii_uppercase
-        import os
-
+        
         for letter in ascii_uppercase:
             drive = f"{letter}:\\"
             if os.path.exists(drive):
                 volumes.append(drive)
-
 
     return volumes
 
