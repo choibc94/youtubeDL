@@ -295,6 +295,35 @@ def detect_android_storage():
 
     return volumes
 
+# USB 다운로드 경로
+def detect_usb_storage():
+    import os
+
+    usb_paths = []
+    base = "/storage"
+
+    try:
+        for name in os.listdir(base):
+
+            # 내부 저장소 제외
+            if name in ("emulated", "self"):
+                continue
+
+            full_path = os.path.join(base, name)
+
+            if os.path.isdir(full_path):
+
+                download_path = os.path.join(full_path, "Download")
+
+                if os.path.exists(download_path):
+                    usb_paths.append(download_path)
+
+    except PermissionError:
+        pass
+
+    return usb_paths
+
+
 def build_download_paths():
 
     paths = []
